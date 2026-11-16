@@ -1,0 +1,100 @@
+name: CD
+
+on:
+  push:
+    tags: ['v*'] # Roda automaticamente quando você envia uma tag que começa com 'v' (ex: v1.0.0)
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Versão para deploy ou rollback (ex: v1.0.1)'
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  ci:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  release:
+    needs: ci
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Login no GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e Push da imagem com a versão
+        run: |
+          IMAGE=ghcr.io/seu_usuario/seu_repo
+          docker build -t "$IMAGE:$TAG" .
+          docker push "$IMAGE:$TAG"
+
+  deploy:
+    needs: release
+    if: ${{ !failure() && !cancelled() }}
+    environment: production
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Login no Azure via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Atualizar imagem e versão no Azure Container Apps
+        run: |
+          az containerapp update --name intent-clf --resource-group mlops-2026-2 \
+            --image ghcr.io/seu_usuario/seu_repo:${{ env.TAG }} \
+            --set-env-vars APP_VERSION=${{ env.TAG }}
+
+  verify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar API pública
+        run: |
+          URL=${{ vars.APP_URL }}
+          MSG='{"nome":"cd","text": "não entendi nada"}'
+          
+          for i in $(seq 90); do
+            if curl -fsS "$URL/" | grep -q "\"${{ env.TAG }}\"" && \
+               curl -fsS -X POST "$URL/predictions" \
+                 -H "Content-Type: application/json" \
+                 -d "$MSG"; then
+              echo "OK: ${{ env.TAG }} no ar e funcionando"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Falhou: ${{ env.TAG }} não respondeu a tempo."
+          exit 1
+```[cite: 27, 29, 31, 36, 39]
+
+---
+
+### Passo a passo prático para implementar:
+
+1. **Criar o arquivo:** No seu projeto local, acesse a pasta `.github/workflows/`, crie o arquivo `cd.yml` e cole o código acima (ajustando o nome da imagem para o seu repositório no GHCR)[cite: 27, 31].
+2. **Configurar as dependências no GitHub:** Antes de enviar, certifique-se de que você já configurou os Segredos do Azure no repositório (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`), a variável `APP_URL` e o ambiente `production` com aprovação (*Required reviewers*) nas configurações do repositório (`Settings > Environments`)[cite: 30, 31, 35].
+3. **Enviar para o GitHub:** Faça o commit e o *push* do arquivo para a branch `main`[cite: 41]:
+   ```bash
+   git add .github/workflows/cd.yml
+   git commit -m "Adiciona workflow de CD automatizado"
+   git push origin main
