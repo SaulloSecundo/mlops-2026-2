@@ -85,16 +85,3 @@ jobs:
           done
           echo "Falhou: ${{ env.TAG }} não respondeu a tempo."
           exit 1
-```[cite: 27, 29, 31, 36, 39]
-
----
-
-### Passo a passo prático para implementar:
-
-1. **Criar o arquivo:** No seu projeto local, acesse a pasta `.github/workflows/`, crie o arquivo `cd.yml` e cole o código acima (ajustando o nome da imagem para o seu repositório no GHCR)[cite: 27, 31].
-2. **Configurar as dependências no GitHub:** Antes de enviar, certifique-se de que você já configurou os Segredos do Azure no repositório (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`), a variável `APP_URL` e o ambiente `production` com aprovação (*Required reviewers*) nas configurações do repositório (`Settings > Environments`)[cite: 30, 31, 35].
-3. **Enviar para o GitHub:** Faça o commit e o *push* do arquivo para a branch `main`[cite: 41]:
-   ```bash
-   git add .github/workflows/cd.yml
-   git commit -m "Adiciona workflow de CD automatizado"
-   git push origin main
