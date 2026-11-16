@@ -61,7 +61,7 @@ jobs:
       - name: Atualizar imagem e versão no Azure Container Apps
         run: |
           az containerapp update --name intent-clf --resource-group mlops-2026-2 \
-            --image ghcr.io/seu_usuario/seu_repo:${{ env.TAG }} \
+            --image ghcr.io/saullosecundp/mlops-2026-2:${{ env.TAG }} \
             --set-env-vars APP_VERSION=${{ env.TAG }}
 
   verify:
