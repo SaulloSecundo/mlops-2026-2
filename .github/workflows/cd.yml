@@ -2,11 +2,11 @@ name: CD
 
 on:
   push:
-    tags: ['v*'] # Roda automaticamente quando você envia uma tag que começa com 'v' (ex: v1.0.0)
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Versão para deploy ou rollback (ex: v1.0.1)'
+        description: 'ex.: v1.0.0'
         required: true
 
 env:
@@ -26,19 +26,18 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Login no GitHub Container Registry (GHCR)
+      - name: Login no GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build e Push da imagem com a versão
+      - name: Build e push com a versão
         run: |
-          IMAGE=ghcr.io/seu_usuario/seu_repo
+          IMAGE=ghcr.io/saullosecundo/mlops-2026-2
           docker build -t "$IMAGE:$TAG" .
           docker push "$IMAGE:$TAG"
 
@@ -58,30 +57,27 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Atualizar imagem e versão no Azure Container Apps
+      - name: Atualizar imagem e versão no Container Apps
         run: |
           az containerapp update --name intent-clf --resource-group mlops-2026-2 \
-            --image ghcr.io/saullosecundp/mlops-2026-2:${{ env.TAG }} \
-            --set-env-vars APP_VERSION=${{ env.TAG }}
+            --image ghcr.io/saullosecundo/mlops-2026-2:${TAG} \
+            --set-env-vars APP_VERSION=${TAG}
 
   verify:
     needs: deploy
     runs-on: ubuntu-latest
     steps:
-      - name: Verificar API pública
+      - name: Verificar nova versão no ar
         run: |
           URL=${{ vars.APP_URL }}
           MSG='{"nome":"cd","text": "não entendi nada"}'
-          
           for i in $(seq 90); do
-            if curl -fsS "$URL/" | grep -q "\"${{ env.TAG }}\"" && \
-               curl -fsS -X POST "$URL/predictions" \
-                 -H "Content-Type: application/json" \
-                 -d "$MSG"; then
-              echo "OK: ${{ env.TAG }} no ar e funcionando"
+            if curl -fsS "$URL/" | grep -q "\"$TAG\"" && \
+               curl -fsS -X POST "$URL/predictions" -H "Content-Type: application/json" -d "$MSG"; then
+              echo "OK: $TAG no ar"
               exit 0
             fi
             sleep 10
           done
-          echo "Falhou: ${{ env.TAG }} não respondeu a tempo."
+          echo "Falhou: $TAG não respondeu. Faça o rollback."
           exit 1
